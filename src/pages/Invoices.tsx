@@ -90,15 +90,15 @@ const Invoices = () => {
     }
   };
 
-  const handleAddToStock = async (item: ExtractedItem) => {
+  const handleSubtractStock = async (item: ExtractedItem) => {
     if (!item.matched_product_id) {
       toast({ title: "No matching product found", variant: "destructive" });
       return;
     }
 
     try {
-      await inventoryApi.addStock(item.matched_product_id, item.quantity);
-      toast({ title: `Added ${item.quantity} to ${item.matched_product_name}` });
+      await inventoryApi.subtractStock(item.matched_product_id, item.quantity);
+      toast({ title: `Sold ${item.quantity} of ${item.matched_product_name}` });
       
       // Remove from list
       setExtractedItems((prev) =>
@@ -130,9 +130,9 @@ const Invoices = () => {
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur border-b border-border px-4 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Invoice Scanner</h1>
+            <h1 className="text-2xl font-bold">Sales Invoice</h1>
             <p className="text-sm text-muted-foreground">
-              AI-powered invoice processing
+              Scan invoice to subtract from stock
             </p>
           </div>
         </div>
@@ -264,10 +264,10 @@ const Invoices = () => {
                       {item.matched_product_id && (
                         <Button
                           size="sm"
-                          onClick={() => handleAddToStock(item)}
+                          onClick={() => handleSubtractStock(item)}
                         >
                           <Check className="h-4 w-4 mr-1" />
-                          Add Stock
+                          Confirm Sale
                         </Button>
                       )}
                     </div>

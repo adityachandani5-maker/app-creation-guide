@@ -143,8 +143,35 @@ export const inventoryApi = {
     // Log stock change
     await supabase.from('stock_history').insert({
       product_id: productId,
-      change_type: 'MANUAL PURCHASE',
+      change_type: 'PURCHASE',
       amount: amount,
+      new_balance: newStock
+    });
+  },
+
+  async subtractStock(productId: string, amount: number): Promise<void> {
+    const { data: product, error: fetchError } = await supabase
+      .from('inventory')
+      .select('current_stock')
+      .eq('id', productId)
+      .single();
+    
+    if (fetchError) throw fetchError;
+
+    const newStock = Math.max(0, (product?.current_stock || 0) - amount);
+
+    const { error: updateError } = await supabase
+      .from('inventory')
+      .update({ current_stock: newStock })
+      .eq('id', productId);
+    
+    if (updateError) throw updateError;
+
+    // Log stock change
+    await supabase.from('stock_history').insert({
+      product_id: productId,
+      change_type: 'SALE',
+      amount: -amount,
       new_balance: newStock
     });
   }
