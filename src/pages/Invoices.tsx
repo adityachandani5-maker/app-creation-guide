@@ -36,8 +36,13 @@ const Invoices = () => {
   const [manualDialogOpen, setManualDialogOpen] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState("");
   const [quantity, setQuantity] = useState("1");
+  const [customPrice, setCustomPrice] = useState("");
   const [paymentMode, setPaymentMode] = useState("Cash");
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+
+  // Sales history
+  const [sales, setSales] = useState<any[]>([]);
+  const [salesLoading, setSalesLoading] = useState(true);
 
   useEffect(() => {
     loadData();
@@ -45,14 +50,18 @@ const Invoices = () => {
 
   const loadData = async () => {
     try {
-      const [productsData, customersData] = await Promise.all([
+      const [productsData, customersData, salesData] = await Promise.all([
         inventoryApi.getAll(),
-        customersApi.getAll()
+        customersApi.getAll(),
+        salesApi.getAll()
       ]);
       setProducts(productsData);
       setCustomers(customersData);
+      setSales(salesData);
     } catch (error) {
       console.error("Error loading data:", error);
+    } finally {
+      setSalesLoading(false);
     }
   };
 
@@ -160,14 +169,15 @@ const Invoices = () => {
     }
 
     try {
-      const totalPrice = product.unit_price * qty;
-      const profit = (product.unit_price - product.purchase_price) * qty;
+      const sellingPrice = customPrice ? parseFloat(customPrice) : product.unit_price;
+      const totalPrice = sellingPrice * qty;
+      const profit = (sellingPrice - product.purchase_price) * qty;
 
       await salesApi.create({
         product_id: selectedProductId,
         customer_id: paymentMode === "Credit" ? selectedCustomer?.id || null : null,
         quantity_sold: qty,
-        unit_price: product.unit_price,
+        unit_price: sellingPrice,
         total_price: totalPrice,
         profit: profit,
         payment_mode: paymentMode,
@@ -187,12 +197,24 @@ const Invoices = () => {
   const resetManualForm = () => {
     setSelectedProductId("");
     setQuantity("1");
+    setCustomPrice("");
     setPaymentMode("Cash");
     setSelectedCustomer(null);
   };
 
   const selectedProduct = products.find(p => p.id === selectedProductId);
-  const subtotal = selectedProduct ? selectedProduct.unit_price * (parseInt(quantity) || 0) : 0;
+  const sellingPrice = customPrice ? parseFloat(customPrice) : (selectedProduct?.unit_price || 0);
+  const subtotal = sellingPrice * (parseInt(quantity) || 0);
+
+  const getProductName = (productId: string | null) => {
+    if (!productId) return "Unknown";
+    return products.find(p => p.id === productId)?.product_name || "Unknown";
+  };
+
+  const getCustomerName = (customerId: string | null) => {
+    if (!customerId) return null;
+    return customers.find(c => c.id === customerId)?.name || null;
+  };
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -255,6 +277,21 @@ const Invoices = () => {
                 </div>
 
                 <div>
+                  <Label>Selling Price (₹)</Label>
+                  <Input
+                    type="number"
+                    value={customPrice}
+                    onChange={(e) => setCustomPrice(e.target.value)}
+                    placeholder={selectedProduct ? `Default: ₹${selectedProduct.unit_price}` : "Select product first"}
+                  />
+                  {selectedProduct && !customPrice && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Leave empty to use default price
+                    </p>
+                  )}
+                </div>
+
+                <div>
                   <Label>Payment Mode</Label>
                   <Select value={paymentMode} onValueChange={setPaymentMode}>
                     <SelectTrigger className="bg-background">
@@ -300,7 +337,12 @@ const Invoices = () => {
                     <CardContent className="p-4">
                       <div className="flex justify-between text-sm mb-1">
                         <span>Unit Price:</span>
-                        <span>₹{selectedProduct.unit_price}</span>
+                        <span className={customPrice ? "line-through text-muted-foreground" : ""}>
+                          ₹{selectedProduct.unit_price}
+                        </span>
+                        {customPrice && (
+                          <span className="text-primary font-medium">₹{customPrice}</span>
+                        )}
                       </div>
                       <div className="flex justify-between text-sm mb-1">
                         <span>Quantity:</span>
@@ -482,13 +524,42 @@ const Invoices = () => {
             )}
           </TabsContent>
 
-          <TabsContent value="history" className="mt-4">
-            <Card>
-              <CardContent className="p-8 text-center text-muted-foreground">
-                <ShoppingCart className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Sales history will appear here</p>
-              </CardContent>
-            </Card>
+          <TabsContent value="history" className="mt-4 space-y-3">
+            {salesLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              </div>
+            ) : sales.length === 0 ? (
+              <Card>
+                <CardContent className="p-8 text-center text-muted-foreground">
+                  <ShoppingCart className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No sales recorded yet</p>
+                </CardContent>
+              </Card>
+            ) : (
+              sales.map((sale) => {
+                const customerName = getCustomerName(sale.customer_id);
+                return (
+                  <Card key={sale.id}>
+                    <CardContent className="p-4">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-medium">{getProductName(sale.product_id)}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {sale.quantity_sold} × ₹{sale.unit_price}
+                            {customerName && <span className="ml-2">• {customerName}</span>}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {new Date(sale.created_at).toLocaleString()} • {sale.payment_mode}
+                          </p>
+                        </div>
+                        <p className="font-bold text-lg">₹{sale.total_price}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })
+            )}
           </TabsContent>
         </Tabs>
       </main>
