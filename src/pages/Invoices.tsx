@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Upload, FileText, Check, X, Loader2, Plus, ShoppingCart } from "lucide-react";
+import { Upload, FileText, Check, X, Loader2, Plus, ShoppingCart, AlertTriangle, Link } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -12,6 +12,7 @@ import { BottomNav } from "@/components/BottomNav";
 import { CustomerAutocomplete } from "@/components/CustomerAutocomplete";
 import { Product, Customer, inventoryApi, invoiceApi, customersApi, salesApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ExtractedItem {
   raw_name: string;
@@ -22,6 +23,15 @@ interface ExtractedItem {
   unit_price: number | null;
   total_price: number | null;
 }
+
+// Simple hash function for duplicate detection
+const hashString = async (str: string): Promise<string> => {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(str);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 32);
+};
 
 const Invoices = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -43,6 +53,9 @@ const Invoices = () => {
   // Sales history
   const [sales, setSales] = useState<any[]>([]);
   const [salesLoading, setSalesLoading] = useState(true);
+
+  // Duplicate detection
+  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -86,12 +99,26 @@ const Invoices = () => {
     reader.onload = async (e) => {
       const base64 = e.target?.result as string;
       setInvoiceImage(base64);
-      await processInvoice(base64);
+      setDuplicateWarning(null);
+      
+      // Check for duplicate invoice
+      const fileHash = await hashString(base64.substring(0, 10000)); // Hash first 10k chars for speed
+      const { data: existing } = await supabase
+        .from('invoice_uploads')
+        .select('id, file_name, created_at')
+        .eq('file_url', fileHash)
+        .maybeSingle();
+      
+      if (existing) {
+        setDuplicateWarning(`This invoice was already uploaded on ${new Date(existing.created_at).toLocaleDateString()}`);
+      }
+      
+      await processInvoice(base64, fileHash);
     };
     reader.readAsDataURL(file);
   };
 
-  const processInvoice = async (imageBase64: string) => {
+  const processInvoice = async (imageBase64: string, fileHash?: string) => {
     setIsProcessing(true);
     setExtractedItems([]);
 
@@ -106,6 +133,16 @@ const Invoices = () => {
       if (result.items && result.items.length > 0) {
         setExtractedItems(result.items);
         toast({ title: `Found ${result.items.length} items in invoice` });
+        
+        // Save invoice record with hash for duplicate detection
+        if (fileHash) {
+          await supabase.from('invoice_uploads').insert({
+            file_name: `invoice_${Date.now()}`,
+            file_url: fileHash,
+            status: 'processed',
+            processed_data: result
+          });
+        }
       } else {
         toast({ title: "No items found in invoice", variant: "destructive" });
       }
@@ -115,6 +152,19 @@ const Invoices = () => {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  // Handle manual product association for unmatched items
+  const handleAssociateProduct = (item: ExtractedItem, productId: string) => {
+    const product = products.find(p => p.id === productId);
+    if (!product) return;
+    
+    setExtractedItems(prev => prev.map(i => 
+      i === item 
+        ? { ...i, matched_product_id: productId, matched_product_name: product.product_name, confidence: 1.0 }
+        : i
+    ));
+    toast({ title: `Linked "${item.raw_name}" to ${product.product_name}` });
   };
 
   const handleSubtractStock = async (item: ExtractedItem) => {
@@ -141,6 +191,7 @@ const Invoices = () => {
   const handleReset = () => {
     setInvoiceImage(null);
     setExtractedItems([]);
+    setDuplicateWarning(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -416,6 +467,19 @@ const Invoices = () => {
               </Card>
             )}
 
+            {/* Duplicate Warning */}
+            {duplicateWarning && (
+              <Card className="border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                  <div>
+                    <p className="font-medium text-amber-800 dark:text-amber-300">Possible Duplicate</p>
+                    <p className="text-sm text-amber-700 dark:text-amber-400">{duplicateWarning}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Invoice Preview */}
             {invoiceImage && !isProcessing && (
               <Card>
@@ -506,7 +570,7 @@ const Invoices = () => {
                           >
                             <X className="h-4 w-4" />
                           </Button>
-                          {item.matched_product_id && (
+                          {item.matched_product_id ? (
                             <Button
                               size="sm"
                               onClick={() => handleSubtractStock(item)}
@@ -514,6 +578,19 @@ const Invoices = () => {
                               <Check className="h-4 w-4 mr-1" />
                               Confirm Sale
                             </Button>
+                          ) : (
+                            <Select onValueChange={(value) => handleAssociateProduct(item, value)}>
+                              <SelectTrigger className="w-[140px] h-8 bg-background">
+                                <SelectValue placeholder="Link product" />
+                              </SelectTrigger>
+                              <SelectContent className="bg-background border shadow-lg z-50 max-h-[300px]">
+                                {products.map((product) => (
+                                  <SelectItem key={product.id} value={product.id}>
+                                    <span className="truncate">{product.product_name}</span>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           )}
                         </div>
                       </div>
