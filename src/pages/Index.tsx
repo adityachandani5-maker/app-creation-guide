@@ -1,85 +1,31 @@
-import { useState, useEffect } from "react";
-import { Plus, Package, AlertTriangle } from "lucide-react";
+import { useState } from "react";
+import { Plus, Package, AlertTriangle, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
-import { inventoryApi, Product } from "@/lib/api";
 import { BottomNav } from "@/components/BottomNav";
-import { SearchInput } from "@/components/SearchInput";
+
+// Mock data for preview
+const mockProducts = [
+  { id: "1", product_name: "Samsung Galaxy A54", category: "Electronics", current_stock: 12, unit: "pcs", unit_price: 32999, low_stock_threshold: 5 },
+  { id: "2", product_name: "iPhone 15 Pro Max", category: "Electronics", current_stock: 3, unit: "pcs", unit_price: 159900, low_stock_threshold: 5 },
+  { id: "3", product_name: "Wireless Earbuds", category: "Accessories", current_stock: 45, unit: "pcs", unit_price: 2499, low_stock_threshold: 10 },
+  { id: "4", product_name: "USB-C Cable 1m", category: "Accessories", current_stock: 2, unit: "pcs", unit_price: 299, low_stock_threshold: 20 },
+  { id: "5", product_name: "Screen Protector", category: "Accessories", current_stock: 78, unit: "pcs", unit_price: 199, low_stock_threshold: 15 },
+  { id: "6", product_name: "Phone Case - Clear", category: "Accessories", current_stock: 34, unit: "pcs", unit_price: 499, low_stock_threshold: 10 },
+  { id: "7", product_name: "Power Bank 10000mAh", category: "Electronics", current_stock: 8, unit: "pcs", unit_price: 1299, low_stock_threshold: 5 },
+  { id: "8", product_name: "Laptop Stand", category: "Accessories", current_stock: 0, unit: "pcs", unit_price: 1499, low_stock_threshold: 3 },
+];
 
 const Index = () => {
-  const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [newProduct, setNewProduct] = useState({
-    product_name: "",
-    category: "",
-    unit: "pcs",
-    purchase_price: "",
-    unit_price: "",
-    low_stock_threshold: "10",
-    current_stock: "0"
-  });
-  const { toast } = useToast();
 
-  useEffect(() => {
-    loadProducts();
-  }, []);
-
-  const loadProducts = async () => {
-    try {
-      const data = await inventoryApi.getAll();
-      setProducts(data);
-    } catch (error) {
-      toast({ title: "Error loading products", variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleAddProduct = async () => {
-    if (!newProduct.product_name) {
-      toast({ title: "Product name is required", variant: "destructive" });
-      return;
-    }
-
-    try {
-      await inventoryApi.create({
-        product_name: newProduct.product_name,
-        category: newProduct.category || null,
-        unit: newProduct.unit,
-        purchase_price: parseFloat(newProduct.purchase_price) || 0,
-        unit_price: parseFloat(newProduct.unit_price) || 0,
-        low_stock_threshold: parseInt(newProduct.low_stock_threshold) || 10,
-        current_stock: parseInt(newProduct.current_stock) || 0
-      });
-      toast({ title: "Product added successfully" });
-      setDialogOpen(false);
-      setNewProduct({
-        product_name: "",
-        category: "",
-        unit: "pcs",
-        purchase_price: "",
-        unit_price: "",
-        low_stock_threshold: "10",
-        current_stock: "0"
-      });
-      loadProducts();
-    } catch (error) {
-      toast({ title: "Error adding product", variant: "destructive" });
-    }
-  };
-
-  const filteredProducts = products.filter(p =>
+  const filteredProducts = mockProducts.filter(p =>
     p.product_name.toLowerCase().includes(search.toLowerCase())
   );
 
-  const lowStockProducts = products.filter(p => 
-    (p.current_stock || 0) <= (p.low_stock_threshold || 10)
+  const lowStockProducts = mockProducts.filter(p => 
+    p.current_stock <= p.low_stock_threshold
   );
 
   return (
@@ -89,94 +35,22 @@ const Index = () => {
         <div className="flex items-center justify-between mb-3">
           <div>
             <h1 className="text-xl font-bold text-foreground">Stock</h1>
-            <p className="text-sm text-muted-foreground">{products.length} products</p>
+            <p className="text-sm text-muted-foreground">{mockProducts.length} products</p>
           </div>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-1" />
-                Add Product
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add New Product</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label>Product Name *</Label>
-                  <Input
-                    value={newProduct.product_name}
-                    onChange={(e) => setNewProduct({ ...newProduct, product_name: e.target.value })}
-                    placeholder="Enter product name"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Category</Label>
-                    <Input
-                      value={newProduct.category}
-                      onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
-                      placeholder="e.g. Electronics"
-                    />
-                  </div>
-                  <div>
-                    <Label>Unit</Label>
-                    <Input
-                      value={newProduct.unit}
-                      onChange={(e) => setNewProduct({ ...newProduct, unit: e.target.value })}
-                      placeholder="e.g. pcs, kg"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Purchase Price</Label>
-                    <Input
-                      type="number"
-                      value={newProduct.purchase_price}
-                      onChange={(e) => setNewProduct({ ...newProduct, purchase_price: e.target.value })}
-                      placeholder="0"
-                    />
-                  </div>
-                  <div>
-                    <Label>Selling Price</Label>
-                    <Input
-                      type="number"
-                      value={newProduct.unit_price}
-                      onChange={(e) => setNewProduct({ ...newProduct, unit_price: e.target.value })}
-                      placeholder="0"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Initial Stock</Label>
-                    <Input
-                      type="number"
-                      value={newProduct.current_stock}
-                      onChange={(e) => setNewProduct({ ...newProduct, current_stock: e.target.value })}
-                      placeholder="0"
-                    />
-                  </div>
-                  <div>
-                    <Label>Low Stock Alert</Label>
-                    <Input
-                      type="number"
-                      value={newProduct.low_stock_threshold}
-                      onChange={(e) => setNewProduct({ ...newProduct, low_stock_threshold: e.target.value })}
-                      placeholder="10"
-                    />
-                  </div>
-                </div>
-                <Button onClick={handleAddProduct} className="w-full">
-                  Add Product
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+          <Button size="sm">
+            <Plus className="h-4 w-4 mr-1" />
+            Add Product
+          </Button>
         </div>
-        <SearchInput value={search} onChange={setSearch} placeholder="Search products..." />
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search products..."
+            className="pl-9"
+          />
+        </div>
       </div>
 
       {/* Low Stock Alert */}
@@ -191,32 +65,32 @@ const Index = () => {
 
       {/* Product List */}
       <div className="p-4 space-y-3">
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-          </div>
-        ) : filteredProducts.length === 0 ? (
+        {filteredProducts.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             <Package className="h-12 w-12 mx-auto mb-3 opacity-50" />
             <p>No products found</p>
           </div>
         ) : (
           filteredProducts.map((product) => {
-            const isLowStock = (product.current_stock || 0) <= (product.low_stock_threshold || 10);
+            const isLowStock = product.current_stock <= product.low_stock_threshold;
+            const isOutOfStock = product.current_stock === 0;
             return (
               <Card key={product.id} className="p-4">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <h3 className="font-medium text-foreground">{product.product_name}</h3>
                     <p className="text-sm text-muted-foreground">
-                      {product.category || "Uncategorized"} • ₹{product.unit_price}/{product.unit}
+                      {product.category} • ₹{product.unit_price.toLocaleString()}/{product.unit}
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className={`text-lg font-bold ${isLowStock ? 'text-destructive' : 'text-foreground'}`}>
-                      {product.current_stock || 0}
+                    <p className={`text-lg font-bold ${isOutOfStock ? 'text-destructive' : isLowStock ? 'text-orange-500' : 'text-foreground'}`}>
+                      {product.current_stock}
                     </p>
                     <p className="text-xs text-muted-foreground">{product.unit}</p>
+                    {isOutOfStock && (
+                      <span className="text-xs text-destructive font-medium">Out of stock</span>
+                    )}
                   </div>
                 </div>
               </Card>
