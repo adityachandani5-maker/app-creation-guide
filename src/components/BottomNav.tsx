@@ -1,13 +1,13 @@
 import { Link, useLocation } from "react-router-dom";
-import { Package, Users, ShoppingCart, CreditCard, FileText } from "lucide-react";
+import { Package, Users, ShoppingCart, CreditCard, FileText, PackagePlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { to: "/", icon: Package, label: "Inventory" },
+  { to: "/", icon: Package, label: "Stock" },
+  { to: "/purchases", icon: PackagePlus, label: "Purchase" },
+  { to: "/invoices", icon: FileText, label: "Sales" },
   { to: "/customers", icon: Users, label: "Customers" },
-  { to: "/sales", icon: ShoppingCart, label: "Sales" },
   { to: "/payments", icon: CreditCard, label: "Payments" },
-  { to: "/invoices", icon: FileText, label: "Invoices" },
 ];
 
 export function BottomNav() {
