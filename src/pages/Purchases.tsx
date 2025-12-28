@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Plus, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { BottomNav } from "@/components/BottomNav";
 import { ProductAutocomplete } from "@/components/ProductAutocomplete";
@@ -18,7 +19,7 @@ import { Product, inventoryApi } from "@/lib/api";
 
 interface PurchaseEntry {
   id: string;
-  product: Product;
+  productName: string;
   quantity: number;
   timestamp: Date;
 }
@@ -30,6 +31,16 @@ const Purchases = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+
+  // New product form state
+  const [newProduct, setNewProduct] = useState({
+    product_name: "",
+    category: "",
+    unit: "pcs",
+    purchase_price: "",
+    unit_price: "",
+    initial_stock: ""
+  });
 
   const handleAddPurchase = async () => {
     if (!selectedProduct) {
@@ -47,10 +58,9 @@ const Purchases = () => {
     try {
       await inventoryApi.addStock(selectedProduct.id, qty);
       
-      // Add to recent purchases list
       const entry: PurchaseEntry = {
         id: crypto.randomUUID(),
-        product: selectedProduct,
+        productName: selectedProduct.product_name,
         quantity: qty,
         timestamp: new Date(),
       };
@@ -58,12 +68,61 @@ const Purchases = () => {
 
       toast({ title: `Added ${qty} ${selectedProduct.unit} of ${selectedProduct.product_name}` });
       
-      // Reset form
       setSelectedProduct(null);
       setQuantity("");
       setIsDialogOpen(false);
     } catch (error) {
       toast({ title: "Error adding stock", variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCreateNewProduct = async () => {
+    if (!newProduct.product_name) {
+      toast({ title: "Product name is required", variant: "destructive" });
+      return;
+    }
+
+    const initialStock = parseInt(newProduct.initial_stock) || 0;
+    if (initialStock <= 0) {
+      toast({ title: "Please enter initial stock quantity", variant: "destructive" });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const created = await inventoryApi.create({
+        product_name: newProduct.product_name,
+        category: newProduct.category || null,
+        unit: newProduct.unit || "pcs",
+        purchase_price: parseFloat(newProduct.purchase_price) || 0,
+        unit_price: parseFloat(newProduct.unit_price) || 0,
+        current_stock: initialStock,
+        low_stock_threshold: 10
+      });
+
+      const entry: PurchaseEntry = {
+        id: crypto.randomUUID(),
+        productName: created.product_name,
+        quantity: initialStock,
+        timestamp: new Date(),
+      };
+      setRecentPurchases((prev) => [entry, ...prev]);
+
+      toast({ title: `Created ${created.product_name} with ${initialStock} ${created.unit}` });
+      
+      setNewProduct({
+        product_name: "",
+        category: "",
+        unit: "pcs",
+        purchase_price: "",
+        unit_price: "",
+        initial_stock: ""
+      });
+      setIsDialogOpen(false);
+    } catch (error) {
+      toast({ title: "Error creating product", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
@@ -87,56 +146,134 @@ const Purchases = () => {
                 Add Stock
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Add Purchase</DialogTitle>
               </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label>Product</Label>
-                  <ProductAutocomplete
-                    value={selectedProduct}
-                    onChange={setSelectedProduct}
-                    placeholder="Search existing products..."
-                  />
-                </div>
+              
+              <Tabs defaultValue="existing" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="existing">Existing Product</TabsTrigger>
+                  <TabsTrigger value="new">New Product</TabsTrigger>
+                </TabsList>
 
-                {selectedProduct && (
-                  <Card className="bg-muted/50">
-                    <CardContent className="p-3 text-sm">
-                      <div className="flex justify-between">
-                        <span>Current Stock:</span>
-                        <span className="font-medium">
-                          {selectedProduct.current_stock} {selectedProduct.unit}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Purchase Price:</span>
-                        <span className="font-medium">₹{selectedProduct.purchase_price}</span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
+                <TabsContent value="existing" className="space-y-4 mt-4">
+                  <div className="space-y-2">
+                    <Label>Product</Label>
+                    <ProductAutocomplete
+                      value={selectedProduct}
+                      onChange={setSelectedProduct}
+                      placeholder="Search existing products..."
+                    />
+                  </div>
 
-                <div className="space-y-2">
-                  <Label>Quantity to Add</Label>
-                  <Input
-                    type="number"
-                    value={quantity}
-                    onChange={(e) => setQuantity(e.target.value)}
-                    placeholder="Enter quantity"
-                    min="1"
-                  />
-                </div>
+                  {selectedProduct && (
+                    <Card className="bg-muted/50">
+                      <CardContent className="p-3 text-sm">
+                        <div className="flex justify-between">
+                          <span>Current Stock:</span>
+                          <span className="font-medium">
+                            {selectedProduct.current_stock} {selectedProduct.unit}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Purchase Price:</span>
+                          <span className="font-medium">₹{selectedProduct.purchase_price}</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
 
-                <Button
-                  className="w-full"
-                  onClick={handleAddPurchase}
-                  disabled={!selectedProduct || !quantity || isSubmitting}
-                >
-                  {isSubmitting ? "Adding..." : "Add to Stock"}
-                </Button>
-              </div>
+                  <div className="space-y-2">
+                    <Label>Quantity to Add</Label>
+                    <Input
+                      type="number"
+                      value={quantity}
+                      onChange={(e) => setQuantity(e.target.value)}
+                      placeholder="Enter quantity"
+                      min="1"
+                    />
+                  </div>
+
+                  <Button
+                    className="w-full"
+                    onClick={handleAddPurchase}
+                    disabled={!selectedProduct || !quantity || isSubmitting}
+                  >
+                    {isSubmitting ? "Adding..." : "Add to Stock"}
+                  </Button>
+                </TabsContent>
+
+                <TabsContent value="new" className="space-y-4 mt-4">
+                  <div className="space-y-2">
+                    <Label>Product Name *</Label>
+                    <Input
+                      value={newProduct.product_name}
+                      onChange={(e) => setNewProduct({ ...newProduct, product_name: e.target.value })}
+                      placeholder="e.g. Coke 500ml"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>Category</Label>
+                      <Input
+                        value={newProduct.category}
+                        onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
+                        placeholder="e.g. Beverages"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Unit</Label>
+                      <Input
+                        value={newProduct.unit}
+                        onChange={(e) => setNewProduct({ ...newProduct, unit: e.target.value })}
+                        placeholder="pcs"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>Purchase Price</Label>
+                      <Input
+                        type="number"
+                        value={newProduct.purchase_price}
+                        onChange={(e) => setNewProduct({ ...newProduct, purchase_price: e.target.value })}
+                        placeholder="₹0"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Selling Price</Label>
+                      <Input
+                        type="number"
+                        value={newProduct.unit_price}
+                        onChange={(e) => setNewProduct({ ...newProduct, unit_price: e.target.value })}
+                        placeholder="₹0"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Initial Stock Quantity *</Label>
+                    <Input
+                      type="number"
+                      value={newProduct.initial_stock}
+                      onChange={(e) => setNewProduct({ ...newProduct, initial_stock: e.target.value })}
+                      placeholder="How many are you adding?"
+                      min="1"
+                    />
+                  </div>
+
+                  <Button
+                    className="w-full"
+                    onClick={handleCreateNewProduct}
+                    disabled={!newProduct.product_name || !newProduct.initial_stock || isSubmitting}
+                  >
+                    {isSubmitting ? "Creating..." : "Create & Add Stock"}
+                  </Button>
+                </TabsContent>
+              </Tabs>
             </DialogContent>
           </Dialog>
         </div>
@@ -152,9 +289,9 @@ const Purchases = () => {
                 <CardContent className="p-4">
                   <div className="flex justify-between items-center">
                     <div>
-                      <p className="font-medium">{entry.product.product_name}</p>
+                      <p className="font-medium">{entry.productName}</p>
                       <p className="text-sm text-muted-foreground">
-                        +{entry.quantity} {entry.product.unit}
+                        +{entry.quantity} added
                       </p>
                     </div>
                     <p className="text-sm text-muted-foreground">
@@ -173,7 +310,7 @@ const Purchases = () => {
             <CardContent className="p-8 text-center text-muted-foreground">
               <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p className="font-medium">No recent purchases</p>
-              <p className="text-sm">Add stock to existing products</p>
+              <p className="text-sm">Add stock to existing or new products</p>
             </CardContent>
           </Card>
         )}
