@@ -69,13 +69,16 @@ const Invoices = () => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
-      toast({ title: "Please select an image file", variant: "destructive" });
+    const isImage = file.type.startsWith("image/");
+    const isPdf = file.type === "application/pdf";
+
+    if (!isImage && !isPdf) {
+      toast({ title: "Please select an image or PDF file", variant: "destructive" });
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      toast({ title: "Image must be less than 5MB", variant: "destructive" });
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "File must be less than 10MB", variant: "destructive" });
       return;
     }
 
@@ -380,7 +383,7 @@ const Invoices = () => {
                 <CardContent className="p-8">
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/*,application/pdf"
                     capture="environment"
                     onChange={handleFileSelect}
                     ref={fileInputRef}
@@ -393,7 +396,7 @@ const Invoices = () => {
                     <Upload className="h-12 w-12" />
                     <div className="text-center">
                       <p className="font-medium">Tap to upload invoice</p>
-                      <p className="text-sm">Take a photo or select from gallery</p>
+                      <p className="text-sm">Image or PDF (max 10MB)</p>
                     </div>
                   </button>
                 </CardContent>
@@ -423,11 +426,18 @@ const Invoices = () => {
                       Scan New
                     </Button>
                   </div>
-                  <img
-                    src={invoiceImage}
-                    alt="Invoice"
-                    className="w-full rounded-lg max-h-48 object-contain bg-muted"
-                  />
+                  {invoiceImage.startsWith("data:application/pdf") ? (
+                    <div className="w-full rounded-lg p-8 bg-muted flex flex-col items-center justify-center text-muted-foreground">
+                      <FileText className="h-12 w-12 mb-2" />
+                      <p className="text-sm">PDF uploaded</p>
+                    </div>
+                  ) : (
+                    <img
+                      src={invoiceImage}
+                      alt="Invoice"
+                      className="w-full rounded-lg max-h-48 object-contain bg-muted"
+                    />
+                  )}
                 </CardContent>
               </Card>
             )}
