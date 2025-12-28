@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { BottomNav } from "@/components/BottomNav";
+import { CustomerAutocomplete } from "@/components/CustomerAutocomplete";
 import { Product, Customer, inventoryApi, invoiceApi, customersApi, salesApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -36,7 +37,7 @@ const Invoices = () => {
   const [selectedProductId, setSelectedProductId] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [paymentMode, setPaymentMode] = useState("Cash");
-  const [selectedCustomerId, setSelectedCustomerId] = useState("");
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
   useEffect(() => {
     loadData();
@@ -145,7 +146,7 @@ const Invoices = () => {
       return;
     }
 
-    if (paymentMode === "Credit" && !selectedCustomerId) {
+    if (paymentMode === "Credit" && !selectedCustomer) {
       toast({ title: "Please select a customer for credit sale", variant: "destructive" });
       return;
     }
@@ -164,7 +165,7 @@ const Invoices = () => {
 
       await salesApi.create({
         product_id: selectedProductId,
-        customer_id: paymentMode === "Credit" ? selectedCustomerId : null,
+        customer_id: paymentMode === "Credit" ? selectedCustomer?.id || null : null,
         quantity_sold: qty,
         unit_price: product.unit_price,
         total_price: totalPrice,
@@ -187,7 +188,7 @@ const Invoices = () => {
     setSelectedProductId("");
     setQuantity("1");
     setPaymentMode("Cash");
-    setSelectedCustomerId("");
+    setSelectedCustomer(null);
   };
 
   const selectedProduct = products.find(p => p.id === selectedProductId);
@@ -271,23 +272,26 @@ const Invoices = () => {
                 {paymentMode === "Credit" && (
                   <div>
                     <Label>Customer *</Label>
-                    <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
-                      <SelectTrigger className="bg-background">
-                        <SelectValue placeholder="Select customer" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-background border shadow-lg z-50">
-                        {customers.map((customer) => (
-                          <SelectItem key={customer.id} value={customer.id}>
-                            <div className="flex justify-between items-center w-full gap-4">
-                              <span>{customer.name}</span>
-                              <span className="text-muted-foreground text-sm">
-                                Balance: ₹{customer.current_balance}
-                              </span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <CustomerAutocomplete
+                      value={selectedCustomer}
+                      onChange={setSelectedCustomer}
+                      placeholder="Search or add customer..."
+                      onAddNew={async (name) => {
+                        try {
+                          const newCustomer = await customersApi.create(name);
+                          setSelectedCustomer(newCustomer);
+                          setCustomers(prev => [...prev, newCustomer]);
+                          toast({ title: `Created customer: ${name}` });
+                        } catch (error) {
+                          toast({ title: "Error creating customer", variant: "destructive" });
+                        }
+                      }}
+                    />
+                    {selectedCustomer && selectedCustomer.current_balance > 0 && (
+                      <p className="text-sm text-destructive mt-1">
+                        Outstanding: ₹{selectedCustomer.current_balance.toFixed(2)}
+                      </p>
+                    )}
                   </div>
                 )}
 

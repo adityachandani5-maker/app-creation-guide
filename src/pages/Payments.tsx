@@ -107,6 +107,16 @@ const Payments = () => {
                     value={selectedCustomer}
                     onChange={setSelectedCustomer}
                     placeholder="Search customers..."
+                    onAddNew={async (name) => {
+                      try {
+                        const newCustomer = await customersApi.create(name);
+                        setSelectedCustomer(newCustomer);
+                        setCustomers(prev => [...prev, newCustomer]);
+                        toast({ title: `Created customer: ${name}` });
+                      } catch (error) {
+                        toast({ title: "Error creating customer", variant: "destructive" });
+                      }
+                    }}
                   />
                   {selectedCustomer && selectedCustomer.current_balance > 0 && (
                     <p className="text-sm text-destructive mt-1">
