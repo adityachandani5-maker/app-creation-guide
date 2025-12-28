@@ -90,7 +90,7 @@ export const inventoryApi = {
     return data || [];
   },
 
-  async create(product: Partial<Product>): Promise<Product> {
+  async create(product: Omit<Partial<Product>, 'product_name'> & { product_name: string }): Promise<Product> {
     const { data, error } = await supabase
       .from('inventory')
       .insert([product])
