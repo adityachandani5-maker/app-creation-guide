@@ -1,10 +1,15 @@
 import { useState, useEffect, useRef } from "react";
-import { Upload, FileText, Check, X, Loader2 } from "lucide-react";
+import { Upload, FileText, Check, X, Loader2, Plus, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { BottomNav } from "@/components/BottomNav";
-import { Product, inventoryApi, invoiceApi } from "@/lib/api";
+import { Product, Customer, inventoryApi, invoiceApi, customersApi, salesApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 interface ExtractedItem {
@@ -19,22 +24,34 @@ interface ExtractedItem {
 
 const Invoices = () => {
   const [products, setProducts] = useState<Product[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [extractedItems, setExtractedItems] = useState<ExtractedItem[]>([]);
   const [invoiceImage, setInvoiceImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
+  // Manual sale state
+  const [manualDialogOpen, setManualDialogOpen] = useState(false);
+  const [selectedProductId, setSelectedProductId] = useState("");
+  const [quantity, setQuantity] = useState("1");
+  const [paymentMode, setPaymentMode] = useState("Cash");
+  const [selectedCustomerId, setSelectedCustomerId] = useState("");
+
   useEffect(() => {
-    loadProducts();
+    loadData();
   }, []);
 
-  const loadProducts = async () => {
+  const loadData = async () => {
     try {
-      const data = await inventoryApi.getAll();
-      setProducts(data);
+      const [productsData, customersData] = await Promise.all([
+        inventoryApi.getAll(),
+        customersApi.getAll()
+      ]);
+      setProducts(productsData);
+      setCustomers(customersData);
     } catch (error) {
-      console.error("Error loading products:", error);
+      console.error("Error loading data:", error);
     }
   };
 
@@ -42,19 +59,16 @@ const Invoices = () => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Check file type
     if (!file.type.startsWith("image/")) {
       toast({ title: "Please select an image file", variant: "destructive" });
       return;
     }
 
-    // Check file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       toast({ title: "Image must be less than 5MB", variant: "destructive" });
       return;
     }
 
-    // Convert to base64
     const reader = new FileReader();
     reader.onload = async (e) => {
       const base64 = e.target?.result as string;
@@ -100,13 +114,8 @@ const Invoices = () => {
       await inventoryApi.subtractStock(item.matched_product_id, item.quantity);
       toast({ title: `Sold ${item.quantity} of ${item.matched_product_name}` });
       
-      // Remove from list
-      setExtractedItems((prev) =>
-        prev.filter((i) => i !== item)
-      );
-      
-      // Reload products to show updated stock
-      loadProducts();
+      setExtractedItems((prev) => prev.filter((i) => i !== item));
+      loadData();
     } catch (error) {
       toast({ title: "Error updating stock", variant: "destructive" });
     }
@@ -124,169 +133,360 @@ const Invoices = () => {
     }
   };
 
+  const handleManualSale = async () => {
+    if (!selectedProductId) {
+      toast({ title: "Please select a product", variant: "destructive" });
+      return;
+    }
+
+    const qty = parseInt(quantity);
+    if (!qty || qty <= 0) {
+      toast({ title: "Please enter a valid quantity", variant: "destructive" });
+      return;
+    }
+
+    if (paymentMode === "Credit" && !selectedCustomerId) {
+      toast({ title: "Please select a customer for credit sale", variant: "destructive" });
+      return;
+    }
+
+    const product = products.find(p => p.id === selectedProductId);
+    if (!product) return;
+
+    if ((product.current_stock || 0) < qty) {
+      toast({ title: "Insufficient stock", variant: "destructive" });
+      return;
+    }
+
+    try {
+      const totalPrice = product.unit_price * qty;
+      const profit = (product.unit_price - product.purchase_price) * qty;
+
+      await salesApi.create({
+        product_id: selectedProductId,
+        customer_id: paymentMode === "Credit" ? selectedCustomerId : null,
+        quantity_sold: qty,
+        unit_price: product.unit_price,
+        total_price: totalPrice,
+        profit: profit,
+        payment_mode: paymentMode,
+        date: new Date().toISOString().split('T')[0],
+        invoice_no: null
+      });
+
+      toast({ title: `Sold ${qty} x ${product.product_name}` });
+      setManualDialogOpen(false);
+      resetManualForm();
+      loadData();
+    } catch (error) {
+      toast({ title: "Error recording sale", variant: "destructive" });
+    }
+  };
+
+  const resetManualForm = () => {
+    setSelectedProductId("");
+    setQuantity("1");
+    setPaymentMode("Cash");
+    setSelectedCustomerId("");
+  };
+
+  const selectedProduct = products.find(p => p.id === selectedProductId);
+  const subtotal = selectedProduct ? selectedProduct.unit_price * (parseInt(quantity) || 0) : 0;
+
   return (
     <div className="min-h-screen bg-background pb-20">
       {/* Header */}
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur border-b border-border px-4 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Sales Invoice</h1>
+            <h1 className="text-2xl font-bold">Sales</h1>
             <p className="text-sm text-muted-foreground">
-              Scan invoice to subtract from stock
+              Record sales and subtract from stock
             </p>
           </div>
+          <Dialog open={manualDialogOpen} onOpenChange={setManualDialogOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm">
+                <Plus className="h-4 w-4 mr-1" />
+                Manual Sale
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Record Manual Sale</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div>
+                  <Label>Product *</Label>
+                  <Select value={selectedProductId} onValueChange={setSelectedProductId}>
+                    <SelectTrigger className="bg-background">
+                      <SelectValue placeholder="Select product" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background border shadow-lg z-50">
+                      {products.filter(p => (p.current_stock || 0) > 0).map((product) => (
+                        <SelectItem key={product.id} value={product.id}>
+                          <div className="flex justify-between items-center w-full gap-4">
+                            <span>{product.product_name}</span>
+                            <span className="text-muted-foreground text-sm">
+                              Stock: {product.current_stock} • ₹{product.unit_price}
+                            </span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label>Quantity *</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    max={selectedProduct?.current_stock || 999}
+                    value={quantity}
+                    onChange={(e) => setQuantity(e.target.value)}
+                  />
+                  {selectedProduct && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Available: {selectedProduct.current_stock} {selectedProduct.unit}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <Label>Payment Mode</Label>
+                  <Select value={paymentMode} onValueChange={setPaymentMode}>
+                    <SelectTrigger className="bg-background">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background border shadow-lg z-50">
+                      <SelectItem value="Cash">Cash</SelectItem>
+                      <SelectItem value="UPI">UPI</SelectItem>
+                      <SelectItem value="Card">Card</SelectItem>
+                      <SelectItem value="Credit">Credit (Udhaar)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {paymentMode === "Credit" && (
+                  <div>
+                    <Label>Customer *</Label>
+                    <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder="Select customer" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background border shadow-lg z-50">
+                        {customers.map((customer) => (
+                          <SelectItem key={customer.id} value={customer.id}>
+                            <div className="flex justify-between items-center w-full gap-4">
+                              <span>{customer.name}</span>
+                              <span className="text-muted-foreground text-sm">
+                                Balance: ₹{customer.current_balance}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {selectedProduct && parseInt(quantity) > 0 && (
+                  <Card className="bg-muted/50">
+                    <CardContent className="p-4">
+                      <div className="flex justify-between text-sm mb-1">
+                        <span>Unit Price:</span>
+                        <span>₹{selectedProduct.unit_price}</span>
+                      </div>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span>Quantity:</span>
+                        <span>{quantity}</span>
+                      </div>
+                      <div className="flex justify-between font-bold text-lg border-t pt-2 mt-2">
+                        <span>Total:</span>
+                        <span>₹{subtotal.toLocaleString()}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                <Button onClick={handleManualSale} className="w-full">
+                  <ShoppingCart className="h-4 w-4 mr-2" />
+                  Confirm Sale
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </header>
 
       <main className="p-4 space-y-4">
-        {/* Upload Section */}
-        {!invoiceImage && (
-          <Card className="border-dashed border-2">
-            <CardContent className="p-8">
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={handleFileSelect}
-                ref={fileInputRef}
-                className="hidden"
-              />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full flex flex-col items-center gap-4 text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <Upload className="h-12 w-12" />
-                <div className="text-center">
-                  <p className="font-medium">Tap to upload invoice</p>
-                  <p className="text-sm">Take a photo or select from gallery</p>
-                </div>
-              </button>
-            </CardContent>
-          </Card>
-        )}
+        <Tabs defaultValue="scan" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="scan">Scan Invoice</TabsTrigger>
+            <TabsTrigger value="history">Recent Sales</TabsTrigger>
+          </TabsList>
 
-        {/* Processing State */}
-        {isProcessing && (
-          <Card>
-            <CardContent className="p-8 flex flex-col items-center gap-4">
-              <Loader2 className="h-12 w-12 animate-spin text-primary" />
-              <p className="font-medium">Processing invoice...</p>
-              <p className="text-sm text-muted-foreground">
-                AI is extracting product information
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Invoice Preview */}
-        {invoiceImage && !isProcessing && (
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex justify-between items-center mb-3">
-                <h3 className="font-semibold">Invoice Preview</h3>
-                <Button variant="outline" size="sm" onClick={handleReset}>
-                  Scan New
-                </Button>
-              </div>
-              <img
-                src={invoiceImage}
-                alt="Invoice"
-                className="w-full rounded-lg max-h-48 object-contain bg-muted"
-              />
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Extracted Items */}
-        {extractedItems.length > 0 && (
-          <div className="space-y-3">
-            <h3 className="font-semibold px-1">
-              Extracted Items ({extractedItems.length})
-            </h3>
-            
-            {extractedItems.map((item, index) => (
-              <Card
-                key={index}
-                className={cn(
-                  item.matched_product_id
-                    ? "border-green-200 bg-green-50/50 dark:border-green-900 dark:bg-green-950/20"
-                    : "border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20"
-                )}
-              >
-                <CardContent className="p-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex-1">
-                      <p className="text-sm text-muted-foreground">
-                        From invoice: {item.raw_name}
-                      </p>
-                      {item.matched_product_name ? (
-                        <p className="font-semibold text-green-700 dark:text-green-400">
-                          → {item.matched_product_name}
-                        </p>
-                      ) : (
-                        <p className="font-semibold text-amber-700 dark:text-amber-400">
-                          No match found
-                        </p>
-                      )}
+          <TabsContent value="scan" className="space-y-4 mt-4">
+            {/* Upload Section */}
+            {!invoiceImage && (
+              <Card className="border-dashed border-2">
+                <CardContent className="p-8">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleFileSelect}
+                    ref={fileInputRef}
+                    className="hidden"
+                  />
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full flex flex-col items-center gap-4 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <Upload className="h-12 w-12" />
+                    <div className="text-center">
+                      <p className="font-medium">Tap to upload invoice</p>
+                      <p className="text-sm">Take a photo or select from gallery</p>
                     </div>
-                    <span
-                      className={cn(
-                        "text-xs px-2 py-1 rounded-full",
-                        item.confidence > 0.7
-                          ? "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300"
-                          : item.confidence > 0.4
-                          ? "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300"
-                          : "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
-                      )}
-                    >
-                      {Math.round(item.confidence * 100)}% match
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm">
-                      <span className="font-medium">Qty: {item.quantity}</span>
-                      {item.unit_price && (
-                        <span className="text-muted-foreground ml-2">
-                          @ ₹{item.unit_price}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleDismissItem(item)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                      {item.matched_product_id && (
-                        <Button
-                          size="sm"
-                          onClick={() => handleSubtractStock(item)}
-                        >
-                          <Check className="h-4 w-4 mr-1" />
-                          Confirm Sale
-                        </Button>
-                      )}
-                    </div>
-                  </div>
+                  </button>
                 </CardContent>
               </Card>
-            ))}
-          </div>
-        )}
+            )}
 
-        {/* Empty state after processing */}
-        {invoiceImage && !isProcessing && extractedItems.length === 0 && (
-          <Card>
-            <CardContent className="p-8 text-center text-muted-foreground">
-              <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>All items processed</p>
-            </CardContent>
-          </Card>
-        )}
+            {/* Processing State */}
+            {isProcessing && (
+              <Card>
+                <CardContent className="p-8 flex flex-col items-center gap-4">
+                  <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                  <p className="font-medium">Processing invoice...</p>
+                  <p className="text-sm text-muted-foreground">
+                    AI is extracting product information
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Invoice Preview */}
+            {invoiceImage && !isProcessing && (
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="font-semibold">Invoice Preview</h3>
+                    <Button variant="outline" size="sm" onClick={handleReset}>
+                      Scan New
+                    </Button>
+                  </div>
+                  <img
+                    src={invoiceImage}
+                    alt="Invoice"
+                    className="w-full rounded-lg max-h-48 object-contain bg-muted"
+                  />
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Extracted Items */}
+            {extractedItems.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="font-semibold px-1">
+                  Extracted Items ({extractedItems.length})
+                </h3>
+                
+                {extractedItems.map((item, index) => (
+                  <Card
+                    key={index}
+                    className={cn(
+                      item.matched_product_id
+                        ? "border-green-200 bg-green-50/50 dark:border-green-900 dark:bg-green-950/20"
+                        : "border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20"
+                    )}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex-1">
+                          <p className="text-sm text-muted-foreground">
+                            From invoice: {item.raw_name}
+                          </p>
+                          {item.matched_product_name ? (
+                            <p className="font-semibold text-green-700 dark:text-green-400">
+                              → {item.matched_product_name}
+                            </p>
+                          ) : (
+                            <p className="font-semibold text-amber-700 dark:text-amber-400">
+                              No match found
+                            </p>
+                          )}
+                        </div>
+                        <span
+                          className={cn(
+                            "text-xs px-2 py-1 rounded-full",
+                            item.confidence > 0.7
+                              ? "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300"
+                              : item.confidence > 0.4
+                              ? "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300"
+                              : "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
+                          )}
+                        >
+                          {Math.round(item.confidence * 100)}% match
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm">
+                          <span className="font-medium">Qty: {item.quantity}</span>
+                          {item.unit_price && (
+                            <span className="text-muted-foreground ml-2">
+                              @ ₹{item.unit_price}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDismissItem(item)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                          {item.matched_product_id && (
+                            <Button
+                              size="sm"
+                              onClick={() => handleSubtractStock(item)}
+                            >
+                              <Check className="h-4 w-4 mr-1" />
+                              Confirm Sale
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+
+            {/* Empty state after processing */}
+            {invoiceImage && !isProcessing && extractedItems.length === 0 && (
+              <Card>
+                <CardContent className="p-8 text-center text-muted-foreground">
+                  <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>All items processed</p>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          <TabsContent value="history" className="mt-4">
+            <Card>
+              <CardContent className="p-8 text-center text-muted-foreground">
+                <ShoppingCart className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>Sales history will appear here</p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </main>
 
       <BottomNav />
