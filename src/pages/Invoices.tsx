@@ -57,6 +57,14 @@ const Invoices = () => {
   // Duplicate detection
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
 
+  // New product from invoice state
+  const [newProductDialogOpen, setNewProductDialogOpen] = useState(false);
+  const [newProductItem, setNewProductItem] = useState<ExtractedItem | null>(null);
+  const [newProductName, setNewProductName] = useState("");
+  const [newProductPurchasePrice, setNewProductPurchasePrice] = useState("");
+  const [newProductSellingPrice, setNewProductSellingPrice] = useState("");
+  const [newProductQuantity, setNewProductQuantity] = useState("");
+
   useEffect(() => {
     loadData();
   }, []);
@@ -165,6 +173,66 @@ const Invoices = () => {
         : i
     ));
     toast({ title: `Linked "${item.raw_name}" to ${product.product_name}` });
+  };
+
+  // Open new product dialog with pre-filled data from invoice
+  const handleOpenNewProduct = (item: ExtractedItem) => {
+    setNewProductItem(item);
+    setNewProductName(item.raw_name);
+    setNewProductPurchasePrice(item.unit_price?.toString() || "");
+    setNewProductSellingPrice("");
+    setNewProductQuantity(item.quantity.toString());
+    setNewProductDialogOpen(true);
+  };
+
+  // Create new product from invoice item
+  const handleCreateNewProduct = async () => {
+    if (!newProductName.trim()) {
+      toast({ title: "Please enter product name", variant: "destructive" });
+      return;
+    }
+    if (!newProductPurchasePrice || parseFloat(newProductPurchasePrice) <= 0) {
+      toast({ title: "Please enter valid purchase price", variant: "destructive" });
+      return;
+    }
+    if (!newProductQuantity || parseInt(newProductQuantity) <= 0) {
+      toast({ title: "Please enter valid quantity", variant: "destructive" });
+      return;
+    }
+
+    try {
+      const newProduct = await inventoryApi.create({
+        product_name: newProductName.trim(),
+        purchase_price: parseFloat(newProductPurchasePrice),
+        unit_price: parseFloat(newProductSellingPrice) || parseFloat(newProductPurchasePrice) * 1.2, // Default 20% markup
+        current_stock: parseInt(newProductQuantity),
+        unit: "pcs"
+      });
+
+      // Update the extracted item with the new product
+      if (newProductItem) {
+        setExtractedItems(prev => prev.map(i => 
+          i === newProductItem 
+            ? { ...i, matched_product_id: newProduct.id, matched_product_name: newProduct.product_name, confidence: 1.0 }
+            : i
+        ));
+      }
+
+      setProducts(prev => [...prev, newProduct]);
+      toast({ title: `Created "${newProduct.product_name}" with ${newProductQuantity} in stock` });
+      setNewProductDialogOpen(false);
+      resetNewProductForm();
+    } catch (error) {
+      toast({ title: "Error creating product", variant: "destructive" });
+    }
+  };
+
+  const resetNewProductForm = () => {
+    setNewProductItem(null);
+    setNewProductName("");
+    setNewProductPurchasePrice("");
+    setNewProductSellingPrice("");
+    setNewProductQuantity("");
   };
 
   const handleSubtractStock = async (item: ExtractedItem) => {
@@ -579,18 +647,28 @@ const Invoices = () => {
                               Confirm Sale
                             </Button>
                           ) : (
-                            <Select onValueChange={(value) => handleAssociateProduct(item, value)}>
-                              <SelectTrigger className="w-[140px] h-8 bg-background">
-                                <SelectValue placeholder="Link product" />
-                              </SelectTrigger>
-                              <SelectContent className="bg-background border shadow-lg z-50 max-h-[300px]">
-                                {products.map((product) => (
-                                  <SelectItem key={product.id} value={product.id}>
-                                    <span className="truncate">{product.product_name}</span>
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <div className="flex gap-1">
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => handleOpenNewProduct(item)}
+                              >
+                                <Plus className="h-4 w-4 mr-1" />
+                                New
+                              </Button>
+                              <Select onValueChange={(value) => handleAssociateProduct(item, value)}>
+                                <SelectTrigger className="w-[100px] h-8 bg-background">
+                                  <SelectValue placeholder="Link" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-background border shadow-lg z-50 max-h-[300px]">
+                                  {products.map((product) => (
+                                    <SelectItem key={product.id} value={product.id}>
+                                      <span className="truncate">{product.product_name}</span>
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -652,6 +730,95 @@ const Invoices = () => {
       </main>
 
       <BottomNav />
+
+      {/* New Product from Invoice Dialog */}
+      <Dialog open={newProductDialogOpen} onOpenChange={(open) => {
+        setNewProductDialogOpen(open);
+        if (!open) resetNewProductForm();
+      }}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Create New Product</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label>Product Name *</Label>
+              <Input
+                value={newProductName}
+                onChange={(e) => setNewProductName(e.target.value)}
+                placeholder="Product name"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Detected from invoice: "{newProductItem?.raw_name}"
+              </p>
+            </div>
+
+            <div>
+              <Label>Purchase Price (₹) *</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={newProductPurchasePrice}
+                onChange={(e) => setNewProductPurchasePrice(e.target.value)}
+                placeholder="Cost per unit"
+              />
+            </div>
+
+            <div>
+              <Label>Selling Price (₹)</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={newProductSellingPrice}
+                onChange={(e) => setNewProductSellingPrice(e.target.value)}
+                placeholder="Leave empty for 20% markup"
+              />
+              {!newProductSellingPrice && newProductPurchasePrice && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Default: ₹{(parseFloat(newProductPurchasePrice) * 1.2).toFixed(2)}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <Label>Quantity Purchased *</Label>
+              <Input
+                type="number"
+                min="1"
+                value={newProductQuantity}
+                onChange={(e) => setNewProductQuantity(e.target.value)}
+                placeholder="How many units bought"
+              />
+            </div>
+
+            {newProductPurchasePrice && newProductQuantity && (
+              <Card className="bg-muted/50">
+                <CardContent className="p-4">
+                  <div className="flex justify-between text-sm mb-1">
+                    <span>Unit Cost:</span>
+                    <span>₹{parseFloat(newProductPurchasePrice).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span>Quantity:</span>
+                    <span>{newProductQuantity}</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-lg border-t pt-2 mt-2">
+                    <span>Total Purchase:</span>
+                    <span>₹{(parseFloat(newProductPurchasePrice) * parseInt(newProductQuantity)).toLocaleString()}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            <Button onClick={handleCreateNewProduct} className="w-full">
+              <Plus className="h-4 w-4 mr-2" />
+              Create Product & Add to Stock
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
