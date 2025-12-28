@@ -217,7 +217,7 @@ const Index = () => {
                   <div className="flex-1">
                     <h3 className="font-medium text-foreground">{product.product_name}</h3>
                     <p className="text-sm text-muted-foreground">
-                      {product.category || "Uncategorized"} • ₹{product.unit_price}/{product.unit}
+                      {product.category || "Uncategorized"} • ₹{product.purchase_price}/{product.unit}
                     </p>
                   </div>
                   <div className="text-right">
