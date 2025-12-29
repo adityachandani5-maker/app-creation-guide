@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Upload, FileText, Check, X, Loader2, Plus, ShoppingCart, AlertTriangle, Link } from "lucide-react";
+import { Upload, FileText, Check, X, Loader2, Plus, ShoppingCart, AlertTriangle, Link, ScanLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { BottomNav } from "@/components/BottomNav";
 import { CustomerAutocomplete } from "@/components/CustomerAutocomplete";
+import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { Product, Customer, inventoryApi, invoiceApi, customersApi, salesApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -57,7 +58,8 @@ const Invoices = () => {
   // Duplicate detection
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
 
-  // New product from invoice state
+  // Barcode scanner state
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [newProductDialogOpen, setNewProductDialogOpen] = useState(false);
   const [newProductItem, setNewProductItem] = useState<ExtractedItem | null>(null);
   const [newProductName, setNewProductName] = useState("");
@@ -338,6 +340,25 @@ const Invoices = () => {
     return customers.find(c => c.id === customerId)?.name || null;
   };
 
+  const handleBarcodeScan = async (barcode: string) => {
+    try {
+      const product = await inventoryApi.findByBarcode(barcode);
+      if (product) {
+        setSelectedProductId(product.id);
+        setManualDialogOpen(true);
+        toast({ title: `Found: ${product.product_name}` });
+      } else {
+        toast({ 
+          title: "Product not found", 
+          description: `No product with barcode: ${barcode}`,
+          variant: "destructive" 
+        });
+      }
+    } catch (error) {
+      toast({ title: "Error looking up barcode", variant: "destructive" });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background pb-20">
       {/* Header */}
@@ -349,13 +370,21 @@ const Invoices = () => {
               Record sales and subtract from stock
             </p>
           </div>
-          <Dialog open={manualDialogOpen} onOpenChange={setManualDialogOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-1" />
-                Manual Sale
-              </Button>
-            </DialogTrigger>
+          <div className="flex gap-2">
+            <Button 
+              size="icon" 
+              variant="outline"
+              onClick={() => setIsScannerOpen(true)}
+            >
+              <ScanLine className="h-4 w-4" />
+            </Button>
+            <Dialog open={manualDialogOpen} onOpenChange={setManualDialogOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm">
+                  <Plus className="h-4 w-4 mr-1" />
+                  Manual Sale
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Record Manual Sale</DialogTitle>
@@ -485,7 +514,13 @@ const Invoices = () => {
               </div>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
+        <BarcodeScanner 
+          open={isScannerOpen} 
+          onClose={() => setIsScannerOpen(false)} 
+          onScan={handleBarcodeScan} 
+        />
       </header>
 
       <main className="p-4 space-y-4">
