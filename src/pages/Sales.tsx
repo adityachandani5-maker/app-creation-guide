@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, ShoppingCart } from "lucide-react";
+import { Plus, ShoppingCart, ScanLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { BottomNav } from "@/components/BottomNav";
 import { ProductAutocomplete } from "@/components/ProductAutocomplete";
 import { CustomerAutocomplete } from "@/components/CustomerAutocomplete";
+import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { Product, Customer, Sale, salesApi, customersApi, inventoryApi } from "@/lib/api";
 
 const Sales = () => {
@@ -18,6 +19,7 @@ const Sales = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [quantity, setQuantity] = useState(1);
@@ -115,6 +117,25 @@ const Sales = () => {
     return customer?.name;
   };
 
+  const handleBarcodeScan = async (barcode: string) => {
+    try {
+      const product = await inventoryApi.findByBarcode(barcode);
+      if (product) {
+        setSelectedProduct(product);
+        setIsAddOpen(true);
+        toast({ title: `Found: ${product.product_name}` });
+      } else {
+        toast({ 
+          title: "Product not found", 
+          description: `No product with barcode: ${barcode}`,
+          variant: "destructive" 
+        });
+      }
+    } catch (error) {
+      toast({ title: "Error looking up barcode", variant: "destructive" });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background pb-20">
       {/* Header */}
@@ -126,91 +147,106 @@ const Sales = () => {
               {sales.length} transactions
             </p>
           </div>
-          <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-            <DialogTrigger asChild>
-              <Button size="icon" className="rounded-full h-12 w-12">
-                <Plus className="h-6 w-6" />
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Record Sale</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label>Product *</Label>
-                  <ProductAutocomplete
-                    value={selectedProduct}
-                    onChange={setSelectedProduct}
-                    placeholder="Search products..."
-                  />
-                  {selectedProduct && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Price: ₹{selectedProduct.unit_price} | Stock:{" "}
-                      {selectedProduct.current_stock}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <Label>Quantity</Label>
-                  <Input
-                    type="number"
-                    value={quantity}
-                    onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
-                    min={1}
-                  />
-                </div>
-
-                <div>
-                  <Label>Payment Mode</Label>
-                  <Select value={paymentMode} onValueChange={setPaymentMode}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Cash">Cash</SelectItem>
-                      <SelectItem value="Credit">Credit</SelectItem>
-                      <SelectItem value="UPI">UPI</SelectItem>
-                      <SelectItem value="Card">Card</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {paymentMode === "Credit" && (
+          <div className="flex gap-2">
+            <Button 
+              size="icon" 
+              variant="outline" 
+              className="rounded-full h-12 w-12"
+              onClick={() => setIsScannerOpen(true)}
+            >
+              <ScanLine className="h-6 w-6" />
+            </Button>
+            <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+              <DialogTrigger asChild>
+                <Button size="icon" className="rounded-full h-12 w-12">
+                  <Plus className="h-6 w-6" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Record Sale</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
                   <div>
-                    <Label>Customer *</Label>
-                    <CustomerAutocomplete
-                      value={selectedCustomer}
-                      onChange={setSelectedCustomer}
-                      onAddNew={handleAddNewCustomer}
-                      placeholder="Search or add customer..."
+                    <Label>Product *</Label>
+                    <ProductAutocomplete
+                      value={selectedProduct}
+                      onChange={setSelectedProduct}
+                      placeholder="Search products..."
+                    />
+                    {selectedProduct && (
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Price: ₹{selectedProduct.unit_price} | Stock:{" "}
+                        {selectedProduct.current_stock}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <Label>Quantity</Label>
+                    <Input
+                      type="number"
+                      value={quantity}
+                      onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
+                      min={1}
                     />
                   </div>
-                )}
 
-                {selectedProduct && (
-                  <div className="bg-muted p-3 rounded-lg">
-                    <div className="flex justify-between text-sm">
-                      <span>Subtotal:</span>
-                      <span>₹{(selectedProduct.unit_price * quantity).toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm text-green-600 mt-1">
-                      <span>Profit:</span>
-                      <span>
-                        ₹{((selectedProduct.unit_price - selectedProduct.purchase_price) * quantity).toFixed(2)}
-                      </span>
-                    </div>
+                  <div>
+                    <Label>Payment Mode</Label>
+                    <Select value={paymentMode} onValueChange={setPaymentMode}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Cash">Cash</SelectItem>
+                        <SelectItem value="Credit">Credit</SelectItem>
+                        <SelectItem value="UPI">UPI</SelectItem>
+                        <SelectItem value="Card">Card</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                )}
 
-                <Button onClick={handleAddSale} className="w-full">
-                  Record Sale
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+                  {paymentMode === "Credit" && (
+                    <div>
+                      <Label>Customer *</Label>
+                      <CustomerAutocomplete
+                        value={selectedCustomer}
+                        onChange={setSelectedCustomer}
+                        onAddNew={handleAddNewCustomer}
+                        placeholder="Search or add customer..."
+                      />
+                    </div>
+                  )}
+
+                  {selectedProduct && (
+                    <div className="bg-muted p-3 rounded-lg">
+                      <div className="flex justify-between text-sm">
+                        <span>Subtotal:</span>
+                        <span>₹{(selectedProduct.unit_price * quantity).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm text-green-600 mt-1">
+                        <span>Profit:</span>
+                        <span>
+                          ₹{((selectedProduct.unit_price - selectedProduct.purchase_price) * quantity).toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  <Button onClick={handleAddSale} className="w-full">
+                    Record Sale
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
+        <BarcodeScanner 
+          open={isScannerOpen} 
+          onClose={() => setIsScannerOpen(false)} 
+          onScan={handleBarcodeScan} 
+        />
       </header>
 
       {/* Sales List */}
