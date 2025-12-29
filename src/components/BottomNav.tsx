@@ -1,5 +1,6 @@
+import { forwardRef } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Package, Users, ShoppingCart, CreditCard, FileText, PackagePlus } from "lucide-react";
+import { Package, Users, CreditCard, FileText, PackagePlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -10,7 +11,7 @@ const navItems = [
   { to: "/payments", icon: CreditCard, label: "Payments" },
 ];
 
-export function BottomNav() {
+export const BottomNav = forwardRef<HTMLElement, React.HTMLAttributes<HTMLElement>>((props, ref) => {
   const location = useLocation();
 
   return (
@@ -37,4 +38,6 @@ export function BottomNav() {
       </div>
     </nav>
   );
-}
+});
+
+BottomNav.displayName = "BottomNav";
