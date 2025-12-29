@@ -349,13 +349,14 @@ const Purchases = () => {
             </DialogContent>
           </Dialog>
           </div>
-          <BarcodeScanner 
-            open={isScannerOpen} 
-            onClose={() => setIsScannerOpen(false)} 
-            onScan={handleBarcodeScan} 
-          />
         </div>
       </header>
+      
+      <BarcodeScanner 
+        open={isScannerOpen} 
+        onClose={() => setIsScannerOpen(false)} 
+        onScan={handleBarcodeScan} 
+      />
 
       <main className="p-4 space-y-4">
         {/* Recent Purchases */}
