@@ -122,6 +122,16 @@ export const inventoryApi = {
     return data || [];
   },
 
+  async findByBarcode(barcode: string): Promise<Product | null> {
+    const { data, error } = await supabase
+      .from('inventory')
+      .select('*')
+      .eq('barcode', barcode)
+      .maybeSingle();
+    if (error) throw error;
+    return data;
+  },
+
   async addStock(productId: string, amount: number): Promise<void> {
     const { data: product, error: fetchError } = await supabase
       .from('inventory')

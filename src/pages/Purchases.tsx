@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Package } from "lucide-react";
+import { Plus, Package, ScanLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { BottomNav } from "@/components/BottomNav";
 import { ProductAutocomplete } from "@/components/ProductAutocomplete";
+import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { Product, inventoryApi } from "@/lib/api";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -30,6 +31,7 @@ const Purchases = () => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [quantity, setQuantity] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
@@ -171,6 +173,25 @@ const Purchases = () => {
     return date.toLocaleDateString([], { day: 'numeric', month: 'short' });
   };
 
+  const handleBarcodeScan = async (barcode: string) => {
+    try {
+      const product = await inventoryApi.findByBarcode(barcode);
+      if (product) {
+        setSelectedProduct(product);
+        setIsDialogOpen(true);
+        toast({ title: `Found: ${product.product_name}` });
+      } else {
+        toast({ 
+          title: "Product not found", 
+          description: `No product with barcode: ${barcode}`,
+          variant: "destructive" 
+        });
+      }
+    } catch (error) {
+      toast({ title: "Error looking up barcode", variant: "destructive" });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background pb-20">
       {/* Header */}
@@ -182,13 +203,21 @@ const Purchases = () => {
               Add stock to inventory
             </p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-1" />
-                Add Stock
-              </Button>
-            </DialogTrigger>
+          <div className="flex gap-2">
+            <Button 
+              size="icon" 
+              variant="outline"
+              onClick={() => setIsScannerOpen(true)}
+            >
+              <ScanLine className="h-4 w-4" />
+            </Button>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm">
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Stock
+                </Button>
+              </DialogTrigger>
             <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Add Purchase</DialogTitle>
@@ -319,6 +348,12 @@ const Purchases = () => {
               </Tabs>
             </DialogContent>
           </Dialog>
+          </div>
+          <BarcodeScanner 
+            open={isScannerOpen} 
+            onClose={() => setIsScannerOpen(false)} 
+            onScan={handleBarcodeScan} 
+          />
         </div>
       </header>
 
