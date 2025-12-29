@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Package, AlertTriangle, Search } from "lucide-react";
+import { Plus, Package, AlertTriangle, Search, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -14,6 +14,8 @@ const Index = () => {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [newProduct, setNewProduct] = useState({
     product_name: "",
     category: "",
@@ -71,6 +73,32 @@ const Index = () => {
     } catch (error) {
       toast({ title: "Error adding product", variant: "destructive" });
     }
+  };
+
+  const handleEditProduct = async () => {
+    if (!editProduct) return;
+
+    try {
+      await inventoryApi.update(editProduct.id, {
+        product_name: editProduct.product_name,
+        category: editProduct.category,
+        unit: editProduct.unit,
+        purchase_price: editProduct.purchase_price,
+        unit_price: editProduct.unit_price,
+        low_stock_threshold: editProduct.low_stock_threshold
+      });
+      toast({ title: "Product updated successfully" });
+      setEditDialogOpen(false);
+      setEditProduct(null);
+      loadProducts();
+    } catch (error) {
+      toast({ title: "Error updating product", variant: "destructive" });
+    }
+  };
+
+  const openEditDialog = (product: Product) => {
+    setEditProduct({ ...product });
+    setEditDialogOpen(true);
   };
 
   const filteredProducts = products.filter(p =>
@@ -220,14 +248,24 @@ const Index = () => {
                       {product.category || "Uncategorized"} • ₹{product.purchase_price}/{product.unit}
                     </p>
                   </div>
-                  <div className="text-right">
-                    <p className={`text-lg font-bold ${isOutOfStock ? 'text-destructive' : isLowStock ? 'text-orange-500' : 'text-foreground'}`}>
-                      {product.current_stock || 0}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{product.unit}</p>
-                    {isOutOfStock && (
-                      <span className="text-xs text-destructive font-medium">Out of stock</span>
-                    )}
+                  <div className="flex items-start gap-3">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => openEditDialog(product)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <div className="text-right">
+                      <p className={`text-lg font-bold ${isOutOfStock ? 'text-destructive' : isLowStock ? 'text-orange-500' : 'text-foreground'}`}>
+                        {product.current_stock || 0}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{product.unit}</p>
+                      {isOutOfStock && (
+                        <span className="text-xs text-destructive font-medium">Out of stock</span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </Card>
@@ -235,6 +273,72 @@ const Index = () => {
           })
         )}
       </div>
+
+      {/* Edit Product Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Product</DialogTitle>
+          </DialogHeader>
+          {editProduct && (
+            <div className="space-y-4">
+              <div>
+                <Label>Product Name</Label>
+                <Input
+                  value={editProduct.product_name}
+                  onChange={(e) => setEditProduct({ ...editProduct, product_name: e.target.value })}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Category</Label>
+                  <Input
+                    value={editProduct.category || ""}
+                    onChange={(e) => setEditProduct({ ...editProduct, category: e.target.value || null })}
+                    placeholder="e.g. Snacks, Drinks"
+                  />
+                </div>
+                <div>
+                  <Label>Unit</Label>
+                  <Input
+                    value={editProduct.unit}
+                    onChange={(e) => setEditProduct({ ...editProduct, unit: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Purchase Price</Label>
+                  <Input
+                    type="number"
+                    value={editProduct.purchase_price}
+                    onChange={(e) => setEditProduct({ ...editProduct, purchase_price: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+                <div>
+                  <Label>Selling Price</Label>
+                  <Input
+                    type="number"
+                    value={editProduct.unit_price}
+                    onChange={(e) => setEditProduct({ ...editProduct, unit_price: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+              </div>
+              <div>
+                <Label>Low Stock Alert</Label>
+                <Input
+                  type="number"
+                  value={editProduct.low_stock_threshold}
+                  onChange={(e) => setEditProduct({ ...editProduct, low_stock_threshold: parseInt(e.target.value) || 10 })}
+                />
+              </div>
+              <Button onClick={handleEditProduct} className="w-full">
+                Save Changes
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <BottomNav />
     </div>
