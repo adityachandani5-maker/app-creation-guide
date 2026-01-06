@@ -38,10 +38,33 @@ const Invoices = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [extractedItems, setExtractedItems] = useState<ExtractedItem[]>([]);
-  const [invoiceImage, setInvoiceImage] = useState<string | null>(null);
+  const [extractedItems, setExtractedItems] = useState<ExtractedItem[]>(() => {
+    const saved = localStorage.getItem('extractedInvoiceItems');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [invoiceImage, setInvoiceImage] = useState<string | null>(() => {
+    return localStorage.getItem('invoiceImage');
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  // Persist extracted items to localStorage
+  useEffect(() => {
+    if (extractedItems.length > 0) {
+      localStorage.setItem('extractedInvoiceItems', JSON.stringify(extractedItems));
+    } else {
+      localStorage.removeItem('extractedInvoiceItems');
+    }
+  }, [extractedItems]);
+
+  // Persist invoice image to localStorage
+  useEffect(() => {
+    if (invoiceImage) {
+      localStorage.setItem('invoiceImage', invoiceImage);
+    } else {
+      localStorage.removeItem('invoiceImage');
+    }
+  }, [invoiceImage]);
 
   // Manual sale state
   const [manualDialogOpen, setManualDialogOpen] = useState(false);
