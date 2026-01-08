@@ -679,10 +679,22 @@ const Invoices = () => {
                       </div>
 
                       <div className="flex items-center justify-between">
-                        <div className="text-sm">
-                          <span className="font-medium">Qty: {item.quantity}</span>
+                        <div className="text-sm flex items-center gap-2">
+                          <span className="font-medium">Qty:</span>
+                          <Input
+                            type="number"
+                            min="1"
+                            value={item.quantity}
+                            onChange={(e) => {
+                              const newQty = parseInt(e.target.value) || 1;
+                              setExtractedItems(prev => prev.map((i, idx) => 
+                                idx === index ? { ...i, quantity: Math.max(1, newQty) } : i
+                              ));
+                            }}
+                            className="w-16 h-7 text-center p-1"
+                          />
                           {item.unit_price && (
-                            <span className="text-muted-foreground ml-2">
+                            <span className="text-muted-foreground">
                               @ ₹{item.unit_price}
                             </span>
                           )}
