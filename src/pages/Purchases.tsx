@@ -30,6 +30,7 @@ const Purchases = () => {
   const [recentPurchases, setRecentPurchases] = useState<PurchaseEntry[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [quantity, setQuantity] = useState("");
+  const [purchasePrice, setPurchasePrice] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -94,14 +95,17 @@ const Purchases = () => {
       return;
     }
 
+    const price = purchasePrice ? parseFloat(purchasePrice) : undefined;
+
     setIsSubmitting(true);
     try {
-      await inventoryApi.addStock(selectedProduct.id, qty);
+      await inventoryApi.addStock(selectedProduct.id, qty, price);
 
       toast({ title: `Added ${qty} ${selectedProduct.unit} of ${selectedProduct.product_name}` });
       
       setSelectedProduct(null);
       setQuantity("");
+      setPurchasePrice("");
       setIsDialogOpen(false);
       loadRecentPurchases();
     } catch (error) {
@@ -133,6 +137,14 @@ const Purchases = () => {
         unit_price: parseFloat(newProduct.unit_price) || 0,
         current_stock: initialStock,
         low_stock_threshold: 10
+      });
+
+      // Create initial FIFO batch
+      await supabase.from('stock_batches').insert({
+        product_id: created.id,
+        quantity: initialStock,
+        remaining_quantity: initialStock,
+        purchase_price: parseFloat(newProduct.purchase_price) || 0
       });
 
       // Log as purchase in stock_history
@@ -249,23 +261,37 @@ const Purchases = () => {
                           </span>
                         </div>
                         <div className="flex justify-between">
-                          <span>Purchase Price:</span>
+                          <span>Last Purchase Price:</span>
                           <span className="font-medium">₹{selectedProduct.purchase_price}</span>
                         </div>
                       </CardContent>
                     </Card>
                   )}
 
-                  <div className="space-y-2">
-                    <Label>Quantity to Add</Label>
-                    <Input
-                      type="number"
-                      value={quantity}
-                      onChange={(e) => setQuantity(e.target.value)}
-                      placeholder="Enter quantity"
-                      min="1"
-                    />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>Quantity to Add</Label>
+                      <Input
+                        type="number"
+                        value={quantity}
+                        onChange={(e) => setQuantity(e.target.value)}
+                        placeholder="Enter quantity"
+                        min="1"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Purchase Price (₹)</Label>
+                      <Input
+                        type="number"
+                        value={purchasePrice}
+                        onChange={(e) => setPurchasePrice(e.target.value)}
+                        placeholder={selectedProduct ? String(selectedProduct.purchase_price) : "0"}
+                        min="0"
+                        step="0.01"
+                      />
+                    </div>
                   </div>
+
 
                   <Button
                     className="w-full"
