@@ -39,32 +39,44 @@ const Invoices = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [extractedItems, setExtractedItems] = useState<ExtractedItem[]>(() => {
-    const saved = localStorage.getItem('extractedInvoiceItems');
+    // Use sessionStorage instead of localStorage for sensitive invoice data
+    const saved = sessionStorage.getItem('extractedInvoiceItems');
     return saved ? JSON.parse(saved) : [];
   });
   const [invoiceImage, setInvoiceImage] = useState<string | null>(() => {
-    return localStorage.getItem('invoiceImage');
+    return sessionStorage.getItem('invoiceImage');
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  // Persist extracted items to localStorage
+  // Persist extracted items to sessionStorage (clears on browser close)
   useEffect(() => {
     if (extractedItems.length > 0) {
-      localStorage.setItem('extractedInvoiceItems', JSON.stringify(extractedItems));
+      sessionStorage.setItem('extractedInvoiceItems', JSON.stringify(extractedItems));
     } else {
-      localStorage.removeItem('extractedInvoiceItems');
+      sessionStorage.removeItem('extractedInvoiceItems');
     }
   }, [extractedItems]);
 
-  // Persist invoice image to localStorage
+  // Persist invoice image to sessionStorage (clears on browser close)
   useEffect(() => {
     if (invoiceImage) {
-      localStorage.setItem('invoiceImage', invoiceImage);
+      sessionStorage.setItem('invoiceImage', invoiceImage);
     } else {
-      localStorage.removeItem('invoiceImage');
+      sessionStorage.removeItem('invoiceImage');
     }
   }, [invoiceImage]);
+
+  // Clear invoice data on logout or when component unmounts after successful processing
+  useEffect(() => {
+    return () => {
+      // Cleanup on unmount if no items remaining
+      if (extractedItems.length === 0) {
+        sessionStorage.removeItem('extractedInvoiceItems');
+        sessionStorage.removeItem('invoiceImage');
+      }
+    };
+  }, [extractedItems.length]);
 
   // Manual sale state
   const [manualDialogOpen, setManualDialogOpen] = useState(false);
