@@ -109,6 +109,11 @@ const Index = () => {
     (p.current_stock || 0) <= (p.low_stock_threshold || 10)
   );
 
+  // Calculate total inventory value
+  const totalInventoryValue = products.reduce((sum, p) => 
+    sum + ((p.current_stock || 0) * (p.purchase_price || 0)), 0
+  );
+
   return (
     <div className="min-h-screen bg-background pb-20">
       {/* Header */}
@@ -116,7 +121,7 @@ const Index = () => {
         <div className="flex items-center justify-between mb-3">
           <div>
             <h1 className="text-xl font-bold text-foreground">Stock</h1>
-            <p className="text-sm text-muted-foreground">{products.length} products</p>
+            <p className="text-sm text-muted-foreground">{products.length} products • Total Value: <span className="font-semibold text-primary">₹{totalInventoryValue.toLocaleString('en-IN')}</span></p>
           </div>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
@@ -239,6 +244,7 @@ const Index = () => {
           filteredProducts.map((product) => {
             const isLowStock = (product.current_stock || 0) <= (product.low_stock_threshold || 10);
             const isOutOfStock = (product.current_stock || 0) === 0;
+            const productTotalValue = (product.current_stock || 0) * (product.purchase_price || 0);
             return (
               <Card key={product.id} className="p-4">
                 <div className="flex items-start justify-between">
@@ -246,6 +252,9 @@ const Index = () => {
                     <h3 className="font-medium text-foreground">{product.product_name}</h3>
                     <p className="text-sm text-muted-foreground">
                       {product.category || "Uncategorized"} • ₹{product.purchase_price}/{product.unit}
+                    </p>
+                    <p className="text-sm font-medium text-primary mt-1">
+                      Value: ₹{productTotalValue.toLocaleString('en-IN')}
                     </p>
                   </div>
                   <div className="flex items-start gap-3">
