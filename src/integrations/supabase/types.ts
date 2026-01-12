@@ -199,6 +199,41 @@ export type Database = {
           },
         ]
       }
+      stock_batches: {
+        Row: {
+          created_at: string
+          id: string
+          product_id: string | null
+          purchase_price: number
+          quantity: number
+          remaining_quantity: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          product_id?: string | null
+          purchase_price?: number
+          quantity: number
+          remaining_quantity: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          product_id?: string | null
+          purchase_price?: number
+          quantity?: number
+          remaining_quantity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_batches_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "inventory"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stock_history: {
         Row: {
           amount: number
