@@ -141,6 +141,18 @@ export default function Auth() {
                 maxLength={128}
               />
             </div>
+            {isLogin && (
+              <div className="text-right">
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                  disabled={loading || resetLoading}
+                >
+                  {resetLoading ? 'Sending…' : 'Forgot password?'}
+                </button>
+              </div>
+            )}
             <Button type="submit" className="w-full" disabled={loading}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isLogin ? 'Sign In' : 'Sign Up'}
