@@ -1,73 +1,66 @@
-# Welcome to your Lovable project
+# AI Invoice & Inventory Tracker
 
-## Project info
+An AI-powered web application designed to help users upload invoices, extract key product information, and organize inventory data in a clean dashboard format.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+This project was built as a prototype to explore how artificial intelligence can simplify invoice processing, reduce manual data entry, and help small businesses track products more efficiently.
 
-## How can I edit this code?
+## Overview
 
-There are several ways of editing your application.
+Many small businesses still manage invoices and inventory manually, which can be time-consuming and error-prone. This application aims to make that process easier by allowing users to upload invoice documents and convert them into structured data that can be reviewed, stored, and tracked.
 
-**Use Lovable**
+The app focuses on extracting useful invoice details such as product names, quantities, supplier information, and purchase data, then presenting them in a simple and organized interface.
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+## Features
 
-Changes made via Lovable will be committed automatically to this repo.
+- Upload invoice files for processing
+- Extract and organize invoice data
+- Track products and inventory information
+- View supplier and product details in a dashboard
+- Clean and responsive user interface
+- Built with a modern frontend stack
+- Designed as a scalable prototype for future AI and database integration
 
-**Use your preferred IDE**
+## Tech Stack
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
-
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
 - React
-- shadcn-ui
+- TypeScript
+- Vite
 - Tailwind CSS
+- shadcn/ui
+- Supabase
+- Lovable AI
 
-## How can I deploy this project?
+## Why I Built This
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+I built this project to explore how AI tools can be used to solve practical business problems. The idea came from a real-world need: businesses often receive invoices in different formats and need a faster way to convert them into usable inventory data.
 
-## Can I connect a custom domain to my Lovable project?
+This project helped me learn more about frontend development, database-backed applications, AI-assisted prototyping, and how to turn a business problem into a working software product.
 
-Yes, you can!
+## What I Worked On
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+- Designed the structure and user flow of the application
+- Built and customized the frontend interface
+- Organized the app around invoice upload, product tracking, and inventory management
+- Used AI-assisted development tools to speed up prototyping
+- Connected the project to a modern web development stack
+- Focused on creating a clean user experience for non-technical users
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+## Future Improvements
+
+- Add more accurate invoice parsing from PDFs and images
+- Export extracted invoice data to CSV
+- Add user authentication
+- Improve database structure for suppliers, products, and invoices
+- Add analytics for inventory trends
+- Add search and filtering for products
+- Deploy a fully functional live version
+
+## Installation
+
+To run this project locally:
+
+```bash
+git clone https://github.com/adityachandani5-maker/app-creation-guide.git
+cd app-creation-guide
+npm install
+npm run dev
