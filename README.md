@@ -55,6 +55,10 @@ This project helped me learn more about frontend development, database-backed ap
 - Add search and filtering for products
 - Deploy a fully functional live version
 
+## Live Demo
+
+https://app-creation-guide-53y8tl4uk-aditya-chandani-s-projects.vercel.app
+
 ## Installation
 
 To run this project locally:
