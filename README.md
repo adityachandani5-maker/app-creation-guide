@@ -52,8 +52,8 @@ This project helped me learn more about frontend development, database-backed ap
 - Add user authentication
 - Improve database structure for suppliers, products, and invoices
 - Add analytics for inventory trends
-- Add search and filtering for products
-- Deploy a fully functional live version
+- Add filtering for products
+
 
 ## Live Demo
 
