@@ -8,14 +8,35 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 
+import { supabase } from '@/integrations/supabase/client';
+
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   const { signIn, signUp } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  const handleForgotPassword = async () => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email.trim() || !emailRegex.test(email)) {
+      toast({ title: 'Enter your email first', description: 'Type your email above, then click "Forgot password?"', variant: 'destructive' });
+      return;
+    }
+    setResetLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setResetLoading(false);
+    if (error) {
+      toast({ title: 'Could not send reset email', description: error.message, variant: 'destructive' });
+    } else {
+      toast({ title: 'Check your email', description: 'We sent you a link to reset your password.' });
+    }
+  };
 
   const validateInput = () => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
